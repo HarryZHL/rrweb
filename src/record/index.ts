@@ -1,6 +1,12 @@
 import { snapshot } from 'rrweb-snapshot';
 import initObservers from './observer';
-import { mirror, on, getWindowWidth, getWindowHeight } from '../utils';
+import {
+  mirror,
+  on,
+  getWindowWidth,
+  getWindowHeight,
+  polyfill,
+} from '../utils';
 import {
   EventType,
   event,
@@ -17,6 +23,8 @@ function wrapEvent(e: event): eventWithTime {
   };
 }
 
+let wrappedEmit!: (e: eventWithTime, isCheckout?: boolean) => void;
+
 function record(options: recordOptions = {}): listenerHandler | undefined {
   const {
     emit,
@@ -24,15 +32,19 @@ function record(options: recordOptions = {}): listenerHandler | undefined {
     checkoutEveryNth,
     blockClass = 'rr-block',
     ignoreClass = 'rr-ignore',
+    inlineStylesheet = true,
+    maskAllInputs = false,
   } = options;
   // runtime checks for user options
   if (!emit) {
     throw new Error('emit function is required');
   }
 
+  polyfill();
+
   let lastFullSnapshotEvent: eventWithTime;
   let incrementalSnapshotCount = 0;
-  const wrappedEmit = (e: eventWithTime, isCheckout?: boolean) => {
+  wrappedEmit = (e: eventWithTime, isCheckout?: boolean) => {
     emit(e, isCheckout);
     if (e.type === EventType.FullSnapshot) {
       lastFullSnapshotEvent = e;
@@ -62,7 +74,12 @@ function record(options: recordOptions = {}): listenerHandler | undefined {
       }),
       isCheckout,
     );
-    const [node, idNodeMap] = snapshot(document, blockClass);
+    const [node, idNodeMap] = snapshot(
+      document,
+      blockClass,
+      inlineStylesheet,
+      maskAllInputs,
+    );
     if (!node) {
       return console.warn('Failed to snapshot the document');
     }
@@ -108,12 +125,12 @@ function record(options: recordOptions = {}): listenerHandler | undefined {
                 },
               }),
             ),
-          mousemoveCb: positions =>
+          mousemoveCb: (positions, source) =>
             wrappedEmit(
               wrapEvent({
                 type: EventType.IncrementalSnapshot,
                 data: {
-                  source: IncrementalSource.MouseMove,
+                  source,
                   positions,
                 },
               }),
@@ -160,6 +177,8 @@ function record(options: recordOptions = {}): listenerHandler | undefined {
             ),
           blockClass,
           ignoreClass,
+          maskAllInputs,
+          inlineStylesheet,
         }),
       );
     };
@@ -193,5 +212,20 @@ function record(options: recordOptions = {}): listenerHandler | undefined {
     console.warn(error);
   }
 }
+
+record.addCustomEvent = <T>(tag: string, payload: T) => {
+  if (!wrappedEmit) {
+    throw new Error('please add custom event after start recording');
+  }
+  wrappedEmit(
+    wrapEvent({
+      type: EventType.Custom,
+      data: {
+        tag,
+        payload,
+      },
+    }),
+  );
+};
 
 export default record;

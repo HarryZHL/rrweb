@@ -6,6 +6,7 @@ export enum EventType {
   FullSnapshot,
   IncrementalSnapshot,
   Meta,
+  Custom,
 }
 
 export type domContentLoadedEvent = {
@@ -43,6 +44,14 @@ export type metaEvent = {
   };
 };
 
+export type customEvent<T = unknown> = {
+  type: EventType.Custom;
+  data: {
+    tag: string;
+    payload: T;
+  };
+};
+
 export enum IncrementalSource {
   Mutation,
   MouseMove,
@@ -50,6 +59,7 @@ export enum IncrementalSource {
   Scroll,
   ViewportResize,
   Input,
+  TouchMove,
 }
 
 export type mutationData = {
@@ -57,7 +67,7 @@ export type mutationData = {
 } & mutationCallbackParam;
 
 export type mousemoveData = {
-  source: IncrementalSource.MouseMove;
+  source: IncrementalSource.MouseMove | IncrementalSource.TouchMove;
   positions: mousePosition[];
 };
 
@@ -91,19 +101,24 @@ export type event =
   | loadedEvent
   | fullSnapshotEvent
   | incrementalSnapshotEvent
-  | metaEvent;
+  | metaEvent
+  | customEvent;
 
 export type eventWithTime = event & {
   timestamp: number;
   delay?: number;
 };
 
+export type blockClass = string | RegExp;
+
 export type recordOptions = {
   emit?: (e: eventWithTime, isCheckout?: boolean) => void;
   checkoutEveryNth?: number;
   checkoutEveryNms?: number;
-  blockClass?: string;
+  blockClass?: blockClass;
   ignoreClass?: string;
+  maskAllInputs?: boolean;
+  inlineStylesheet?: boolean;
 };
 
 export type observerParam = {
@@ -113,8 +128,10 @@ export type observerParam = {
   scrollCb: scrollCallback;
   viewportResizeCb: viewportResizeCallback;
   inputCb: inputCallback;
-  blockClass: string;
+  blockClass: blockClass;
   ignoreClass: string;
+  maskAllInputs: boolean;
+  inlineStylesheet: boolean;
 };
 
 export type textCursor = {
@@ -160,7 +177,10 @@ type mutationCallbackParam = {
 
 export type mutationCallBack = (m: mutationCallbackParam) => void;
 
-export type mousemoveCallBack = (p: mousePosition[]) => void;
+export type mousemoveCallBack = (
+  p: mousePosition[],
+  source: IncrementalSource.MouseMove | IncrementalSource.TouchMove,
+) => void;
 
 export type mousePosition = {
   x: number;
@@ -178,7 +198,7 @@ export enum MouseInteractions {
   Focus,
   Blur,
   TouchStart,
-  TouchMove,
+  TouchMove_Departed, // we will start a separate observer for touch move event
   TouchEnd,
 }
 
@@ -237,6 +257,8 @@ export type playerConfig = {
   showWarning: boolean;
   showDebug: boolean;
   blockClass: string;
+  liveMode: boolean;
+  insertStyleRules: string[];
 };
 
 export type playerMetaData = {
@@ -254,6 +276,13 @@ export type missingNodeMap = {
 export type actionWithDelay = {
   doAction: () => void;
   delay: number;
+};
+
+export type Handler = (event?: unknown) => void;
+
+export type Emitter = {
+  on(type: string, handler: Handler): void;
+  emit(type: string, event?: unknown): void;
 };
 
 export enum ReplayerEvents {
